@@ -30,7 +30,7 @@ graph LR
 
 | # | Milestone | Status | Notes |
 |---|---|---|---|
-| 1 | Proxmox setup: bridges, CHR VMs, attach Kali | 🟡 In progress | [docs/01-proxmox-setup.md](docs/01-proxmox-setup.md) |
+| 1 | Proxmox setup: bridges, CHR VMs, attach Kali | ✅ Done | [docs/01-proxmox-setup.md](docs/01-proxmox-setup.md) |
 | 2 | Addressing, ARP, L2 vs L3 | ⬜ | |
 | 3 | Static route (then remove it) | ⬜ | |
 | 4 | OSPF: area 0, neighbors, routes | ⬜ | |

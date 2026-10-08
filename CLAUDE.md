@@ -14,8 +14,8 @@ Cloudflare details. Ask the user for those when needed.
 
 ## Environment
 
-- Proxmox VE 9 on Debian 13 (trixie), `-pve` kernel 7.0.x. Node name is `kali`;
-  despite the name it is not Kali Linux.
+- Proxmox VE 9 on Debian 13 (trixie), `-pve` kernel 7.0.x. Node name is
+  `themonitor` (renamed from `kali` on 2026-10-08; standalone node).
 - The web UI is reachable from the internet only through a Cloudflare Tunnel
   protected by Cloudflare Access. SSH is not exposed through Cloudflare. The
   user gets a shell through the web UI (node → Shell).

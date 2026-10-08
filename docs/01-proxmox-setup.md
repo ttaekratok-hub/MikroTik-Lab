@@ -41,7 +41,7 @@ remote access. Mitigation: backup first, read the diff, then apply.
 
 ### Where things are in the Proxmox web UI
 
-- The **node** is the physical Proxmox server (here named `kali`). It sits
+- The **node** is the physical Proxmox server (here named `themonitor`, formerly `kali`). It sits
   under *Datacenter* in the left tree. It is not the same as the Kali **VM**
   (`100 (Kali-Terminal)`).
 - **Node → Shell** is a root terminal on the host. Proxmox commands (`qm`,
@@ -90,22 +90,137 @@ cp /root/interfaces.bak /etc/network/interfaces
 ifreload -a
 ```
 
-## Step 2: download the CHR image ⏭ next
+## Step 2: download and unzip the CHR image ✅
 
-CHR (Cloud Hosted Router) is RouterOS packaged as a VM disk image. Download it
-to the host into its own folder:
+CHR (Cloud Hosted Router) is RouterOS, MikroTik's router OS, packaged as a VM
+disk image for normal x86 servers. Same commands, OSPF, BGP and firewall as a
+physical MikroTik router. The `.img` is a byte-for-byte copy of a router's
+disk; Proxmox imports it as the VM's disk.
 
 ```
 wget -qO- https://upgrade.mikrotik.com/routeros/NEWESTa7.stable; echo
 mkdir -p /root/chr && cd /root/chr
 V=7.24.5
 wget https://download.mikrotik.com/routeros/$V/chr-$V.img.zip
+busybox unzip chr-$V.img.zip
+ls -lh
 ```
 
-## Step 3: create the CHR VMs (to do)
+Stock Proxmox has no `unzip`; `busybox unzip` works. Result:
+`chr-7.24.5.img`, 128M.
 
-Checked against vendor docs (see
+Before creating the routers I stopped Kali (VM 100) and an unused dev VM to
+free RAM: the host has ~7 GB and each CHR gets 1 GB.
+
+## Step 3: create the CHR VMs ✅
+
+Settings checked against vendor docs (see
 [reference/chr-on-proxmox.md](reference/chr-on-proxmox.md)): VirtIO Block
-disk, VirtIO NIC, SeaBIOS (default), 1 GB RAM.
+disk, VirtIO NIC, SeaBIOS (default), 1 GB RAM. Built in small commands
+because long lines get cut off in the web console.
 
-## Step 4: add a lab NIC to Kali (to do)
+CHR1 (one NIC, toward CHR2):
+
+```
+qm create 101 --name CHR1 --memory 1024
+qm set 101 --net0 virtio,bridge=vmbr1
+qm disk import 101 chr-7.24.5.img local-lvm
+qm set 101 --virtio0 local-lvm:vm-101-disk-0
+qm set 101 --boot order=virtio0
+qm config 101
+```
+
+`qm disk import` attaches the new disk as `unused0`; `--virtio0` attaches it
+for real, after which `unused0` disappears.
+
+CHR2 (two NICs, the router in the middle): same commands with `102`, plus
+`qm set 102 --net1 virtio,bridge=vmbr2`.
+
+### Verification
+
+`qm config` shows `memory: 1024`, `boot: order=virtio0`,
+`virtio0: local-lvm:vm-10X-disk-0,size=128M` and the NICs:
+
+| VM | Proxmox NIC | RouterOS name | Bridge | Faces |
+|---|---|---|---|---|
+| CHR1 (101) | `net0` | `ether1` | `vmbr1` | CHR2 |
+| CHR2 (102) | `net0` | `ether1` | `vmbr1` | CHR1 |
+| CHR2 (102) | `net1` | `ether2` | `vmbr2` | Kali |
+
+RouterOS numbers ports from 1, so Proxmox `net0` = `ether1`, `net1` = `ether2`.
+
+### Rollback
+
+```
+qm destroy 101
+qm destroy 102
+```
+
+## Step 4: add a lab NIC to Kali ✅
+
+Kali is the "customer PC" on CHR2's LAN. It gets a **second** NIC on `vmbr2`;
+`net0` stays on `vmbr0` so Kali keeps its home-network and internet access.
+Added while Kali was stopped.
+
+```
+qm set 100 --net1 virtio,bridge=vmbr2
+qm config 100 | grep net
+```
+
+Result: `net0` unchanged (`bridge=vmbr0,firewall=1`), new
+`net1: virtio=...,bridge=vmbr2`.
+
+Rollback: `qm set 100 --delete net1`
+
+## Mental model
+
+Think of it as hardware on a desk: each bridge is an unplugged network switch,
+each `netN` is a port on a machine with a cable to one switch.
+
+```
+CHR1 ether1 --[switch vmbr1]-- ether1 CHR2 ether2 --[switch vmbr2]-- Kali net1
+```
+
+## Step 5: first boot, admin password, identity ✅
+
+A fresh CHR has user `admin` with **no password** and all management services
+on. First job, as at an ISP: set a password and give the router a clear name.
+
+```
+qm start 101          # Node → Shell; then VM 101 → Console
+```
+
+Log in as `admin` with an empty password, answer `n` to the license
+question. At `new password>` pressing Enter skips the step. If that happens,
+set it afterwards:
+
+```
+/password
+/interface print
+/system identity set name=CHR1
+```
+
+Same for CHR2 (`qm start 102`, identity `CHR2`).
+
+RouterOS is not Linux: `ls` gives `bad command name`. Commands are menus
+starting with `/` (e.g. `/interface print`). Tab completes, `?` lists options,
+F1 is help.
+
+### Verification
+
+`/interface print` lists the ports with flag `R` (running = link up). The
+MAC addresses match `qm config`, which proves the Proxmox-to-RouterOS mapping:
+
+| Router | RouterOS port | Matches Proxmox |
+|---|---|---|
+| CHR1 | `ether1` | `net0` (`vmbr1`) |
+| CHR2 | `ether1` | `net0` (`vmbr1`) |
+| CHR2 | `ether2` | `net1` (`vmbr2`) |
+
+`lo` is the loopback: a virtual interface inside the router with no cable.
+The prompt changes to `[admin@CHR1] >` / `[admin@CHR2] >`. Naming routers
+matters: with two consoles open it's easy to type into the wrong one.
+
+Passwords are kept in a password manager, never in this repo.
+
+## Milestone 1 complete ✅
