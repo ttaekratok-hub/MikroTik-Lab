@@ -14,8 +14,8 @@ Cloudflare details. Ask the user for those when needed.
 
 ## Environment
 
-- Proxmox VE 9 on Debian 13 (trixie), `-pve` kernel 7.0.x. Node name is `kali`;
-  despite the name it is not Kali Linux.
+- Proxmox VE 9 on Debian 13 (trixie), `-pve` kernel 7.0.x. Node name is
+  `themonitor` (renamed from `kali` on 2026-10-08; standalone node).
 - The web UI is reachable from the internet only through a Cloudflare Tunnel
   protected by Cloudflare Access. SSH is not exposed through Cloudflare. The
   user gets a shell through the web UI (node → Shell).
@@ -25,48 +25,33 @@ Cloudflare details. Ask the user for those when needed.
   No-Subscription. Not confirmed done yet.
 - Claude Code is installed for root with the native installer
   (`~/.local/bin/claude`, PATH added in `/root/.bashrc`).
-- `tmux` and `git` may not be installed yet; check with `which tmux git`.
 
 ## Status (2026-10-07)
 
-Claude Code is installed but **not signed in**. A sign-in attempt from the
-user's phone failed and may have left these behind:
+- Claude Code is signed in and Remote Control works: sessions run on the host
+  itself as root (not in the cloud). It is not running inside tmux yet.
+- `tmux` and `git` are installed. This repo is cloned at `/root/repos/MikroTik-Lab`.
+- Enterprise apt repos are still enabled (no-subscription repo not added). The
+  Ceph no-subscription repo is not needed; just disable the Ceph enterprise one.
+- Old sign-in leftovers (`~/c`, `~/l`, stray `tail`/`claude auth` processes,
+  sign-in link in the node's Notes) were not checked; the user should clean
+  them up themselves.
+- Lab milestone 1, step 1 done: isolated bridges `vmbr1`, `vmbr2` created.
 
-- background processes from `tail -f ~/c | claude auth login`
-- files `~/c` and `~/l`
-- the sign-in link saved in the `kali` node's Notes
+## Lab plan
 
-Clean up:
+The user is building an OSPF/BGP lab to prepare for an ISP Network Operations
+job. Progress and topology are in `README.md`; per-step notes in `docs/`.
 
-```bash
-pkill -x tail; pkill -f 'claude auth'; rm -f ~/c ~/l
-pvesh set /nodes/kali/config --delete description   # only if Notes still holds the sign-in link
-```
-
-## Next steps
-
-1. Sign in from a computer, where copy and paste work: run `claude`, open the
-   link, paste the code back. Remote Control needs a claude.ai subscription
-   login (Pro/Max/Team/Enterprise); API keys don't work for it.
-2. Start Remote Control in tmux so it survives closing the browser tab:
-   `tmux new -s mikrotik`, then `cd ~/MikroTik-Lab && claude remote-control --name MikroTik`,
-   then detach with Ctrl+b, d. tmux sessions don't survive a reboot.
-3. Build the CHR VM (below).
-
-## CHR VM plan
-
-Check the current MikroTik CHR docs before running anything.
-
-- Get the CHR raw disk image (`chr-<version>.img.zip`) for current stable
-  RouterOS v7 from mikrotik.com/download.
-- Unzip it, import it as the VM disk (`qm disk import`), and make it the boot
-  disk. Confirm which disk bus and NIC model CHR supports instead of assuming.
-- A small VM is enough: 1 vCPU, about 1 GB RAM, NIC on `vmbr0`.
-- The free CHR license caps upload at 1 Mbit/s per interface. That's fine for a
-  lab; trial or paid licenses remove the cap.
-- Before creating anything, ask for the VM ID, storage (e.g. `local-lvm`) and
-  bridge. Also ask whether CHR is only a lab router or should route real
-  traffic.
+- Teach first (2–4 plain sentences on what and why), then give commands. The
+  user types every command themselves. One step at a time; wait for their
+  output or screenshot. Quiz them after each milestone.
+- VM IDs: CHR1 = 101, CHR2 = 102, CHR3 = 103 later. Disks on `local-lvm`.
+- Lab bridges `vmbr1`/`vmbr2` stay isolated (no ports, no host IP). Kali
+  (VM 100) gets a second NIC on `vmbr2`; never move its `net0`.
+- CHR VM settings (checked against docs): see `docs/reference/chr-on-proxmox.md`.
+  Free license caps upload at 1 Mbit/s per interface; P1/P10 raise the cap,
+  only P-Unlimited removes it.
 
 ## How the user works
 
